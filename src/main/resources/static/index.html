@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Spring Boot Chat</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+  <!-- Login -->
+  <div id="loginDiv">
+    <h2>Join Chatroom</h2>
+    <input type="text" id="username" placeholder="Your name"><br>
+    <input type="text" id="room" placeholder="Room name"><br>
+    <button onclick="joinRoom()">Join</button>
+  </div>
+
+  <!-- Chat -->
+  <div id="chatDiv" style="display:none;">
+    <h2 id="roomTitle"></h2>
+    <div id="chat"></div>
+    <input type="text" id="content" placeholder="Type message">
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <script>
+    var stompClient = null;
+    var currentUser = null;
+    var currentRoom = null;
+
+    function connect(callback) {
+      var socket = new SockJS('/ws');
+      stompClient = Stomp.over(socket);
+      stompClient.connect({}, function(frame) {
+        console.log("✅ Connected: " + frame);
+        callback();
+      }, function(error) {
+        console.error("❌ WebSocket error: ", error);
+        alert("Connection failed, check backend logs!");
+      });
+    }
+
+    function joinRoom() {
+      currentUser = document.getElementById("username").value.trim();
+      currentRoom = document.getElementById("room").value.trim();
+
+      if (!currentUser || !currentRoom) {
+        alert("Enter both name and room!");
+        return;
+      }
+
+      connect(function() {
+        stompClient.subscribe('/topic/' + currentRoom, function(messageOutput) {
+          showMessage(JSON.parse(messageOutput.body));
+        });
+
+        document.getElementById("loginDiv").style.display = "none";
+        document.getElementById("chatDiv").style.display = "block";
+        document.getElementById("roomTitle").innerText = "Room: " + currentRoom;
+      });
+    }
+
+    function sendMessage() {
+      var content = document.getElementById("content").value;
+      if (content.trim() !== "") {
+        stompClient.send("/app/sendMessage/" + currentRoom, {}, JSON.stringify({
+          'sender': currentUser,
+          'content': content,
+          'room': currentRoom
+        }));
+        document.getElementById("content").value = "";
+      }
+    }
+
+    function showMessage(message) {
+      var chat = document.getElementById("chat");
+      chat.innerHTML += "<p><b>" + message.sender + ":</b> " + message.content + "</p>";
+    }
+  </script>
+</body>
+</html>
